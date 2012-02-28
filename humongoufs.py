@@ -11,6 +11,8 @@ from pymongo import Connection
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
 
+import mongo_objects
+
 class Humongoufs(LoggingMixIn, Operations):
     """Example memory filesystem. Supports only one level of files."""
     
@@ -47,7 +49,7 @@ class Humongoufs(LoggingMixIn, Operations):
             raise FuseOSError(errno.ENOENT)
         st = self.files[path]
         return st
-    
+
     def getxattr(self, path, name, position=0):
         attrs = self.files[path].get('attrs', {})
         try:
@@ -72,21 +74,8 @@ class Humongoufs(LoggingMixIn, Operations):
         return self.data[path][offset:offset + size]
     
     def readdir(self, path, fh):
-        result = ['.', '..']
-        pp = self.parsePath(path)
-        print pp
-        if not self.validDirPath(pp):
-            raise FuseOSError(errno.ENOENT)
-        if not pp:
-            result += [str(r) for r in self.conn.database_names()]
-        else:
-            if len(pp) == 2: # items in collection
-                result += [str(r['_id']) for r in (self.conn[pp[0]])[pp[1]].find()]
-            elif len(pp) == 1: # collections in db
-                result += [str(r) for r in self.conn[pp[0]].collection_names()]
-            else:
-                raise FuseOSError(errno.ENOENT)
-        return result
+        obj = self.getObjectFromPath(path)
+        return obj.readdir()
             
     def readlink(self, path):
         return self.data[path]
@@ -140,36 +129,18 @@ class Humongoufs(LoggingMixIn, Operations):
     def parsePath(self, path):
         [s for s in path.split('/') if s]
 
-    def documentExists(self, db, col, doc):
-        try:
-            return not ((self.conn[db])[col].find_one(ObjectId(str(doc))) is None)
-        except bson.errors.InvalidId, e:
+    def getObjectFromPath(self, path):
+        pp = self.parsePath(path)
+        if not pp:
+            return mongo_objects.Mongo(self.conn)
+        elif len(pp) == 1:
+            return mongo_objects.Database(self.conn, pp[0])
+        elif len(pp) == 2:
+            return mongo_objects.Collection(self.conn, pp[0], pp[1])
+        elif len(pp) == 3:
+            return mongo_objects.Document(self.conn, pp[0], pp[1], pp[2])
+        else:
             raise FuseOSError(errno.ENOENT)
-
-    def collectionExists(self, db, col):
-        return col in self.conn[db].collection_names()
-    
-    def databaseExists(self, db):
-        return db in self.conn.database_names()
-
-    def validFilePath(self, pathList):
-        if len(pathList) != 3:
-            return False
-        return (self.databaseExists(pathList[0]) and 
-                self.collectionExists(pathList[0], pathList[1]) and
-                self.documentExists(pathList[0], pathList[1], pathList[2]))
-    
-    def validDirPath(self, pathList):
-        result = True
-        if not pathList:
-            return True
-        if len(pathList) > 2:
-            return False
-        if len(pathList) >= 1:
-            result = result and self.databaseExists(pathList[0])
-        if len(pathList) >= 2:
-            result = result and self.collectionExists(pathList[0], pathList[1])
-        return result
 
 def findOpt(option, args):
     if option in args and args.index(option) < len(args) - 1:
