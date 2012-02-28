@@ -74,16 +74,15 @@ class Humongoufs(LoggingMixIn, Operations):
     def readdir(self, path, fh):
         result = ['.', '..']
         pp = self.parsePath(path)
+        print pp
+        if not self.validDirPath(pp):
+            raise FuseOSError(errno.ENOENT)
         if not pp:
-            result += [str(r) for r in default + self.conn.database_names()]
+            result += [str(r) for r in self.conn.database_names()]
         else:
             if len(pp) == 2: # items in collection
-                if not databaseExists(pp[0]) or not collectionExists(pp[0], pp[1]):
-                    raise FuseOSError(errno.ENOENT)
                 result += [str(r['_id']) for r in (self.conn[pp[0]])[pp[1]].find()]
             elif len(pp) == 1: # collections in db
-                if not databaseExists(pp[0]):
-                    raise FuseOSError(errno.ENOENT)
                 result += [str(r) for r in self.conn[pp[0]].collection_names()]
             else:
                 raise FuseOSError(errno.ENOENT)
@@ -143,15 +142,15 @@ class Humongoufs(LoggingMixIn, Operations):
 
     def documentExists(self, db, col, doc):
         try:
-            return not ((conn[db])[col].find_one(ObjectId(str(doc))) is None)
+            return not ((self.conn[db])[col].find_one(ObjectId(str(doc))) is None)
         except bson.errors.InvalidId, e:
             raise FuseOSError(errno.ENOENT)
 
     def collectionExists(self, db, col):
-        return col in conn[db].collection_names()
+        return col in self.conn[db].collection_names()
     
     def databaseExists(self, db):
-        return db in conn.database_names()
+        return db in self.conn.database_names()
 
     def validFilePath(self, pathList):
         if len(pathList) != 3:
@@ -162,12 +161,14 @@ class Humongoufs(LoggingMixIn, Operations):
     
     def validDirPath(self, pathList):
         result = True
+        if not pathList:
+            return True
         if len(pathList) > 2:
             return False
         if len(pathList) >= 1:
             result = result and self.databaseExists(pathList[0])
         if len(pathList) >= 2:
-            result = result and self.collectionExists(pathList[1])
+            result = result and self.collectionExists(pathList[0], pathList[1])
         return result
 
 def findOpt(option, args):
