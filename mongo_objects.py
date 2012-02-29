@@ -45,8 +45,8 @@ class Database:
     def getattr(self):
         mc_time = time.mktime(self.conn['admin'].command('serverStatus')
                               ['backgroundFlushing']['last_finished'].timetuple())
-        st_size = sum([db.command('dbstats')['fileSize'] for db in 
-                       [str(dbName) for dbName in self.conn.database_names()]])
+        st_size = self.conn[self.db].command('dbstats')['fileSize'] 
+
         return {
             'st_mode' : 0777,
             'st_nlink' : len(self.conn.database_names()),
@@ -74,14 +74,13 @@ class Collection:
     def getattr(self):
         mc_time = time.mktime(self.conn['admin'].command('serverStatus')
                               ['backgroundFlushing']['last_finished'].timetuple())
-        st_size = sum([db.command('dbstats')['fileSize'] for db in 
-                       [str(dbName) for dbName in self.conn.database_names()]])
+        st_size = self.conn[self.db].command('collStats', col)['storageSize']
         return {
             'st_mode' : 0777,
-            'st_nlink' : len(self.conn.database_names()),
+            'st_nlink' : 1,
             'st_size' : st_size,
-            'st_ctime' : mc_time,
-            'st_mtime' : mc_time,
+            'st_ctime' : 0,
+            'st_mtime' : 0,
             'st_atime' : time.time()
             }
 
@@ -106,16 +105,12 @@ class Document:
             raise FuseOSError(errno.ENOENT)
 
     def getattr(self):
-        mc_time = time.mktime(self.conn['admin'].command('serverStatus')
-                              ['backgroundFlushing']['last_finished'].timetuple())
-        st_size = sum([db.command('dbstats')['fileSize'] for db in 
-                       [str(dbName) for dbName in self.conn.database_names()]])
         return {
             'st_mode' : 0777,
-            'st_nlink' : len(self.conn.database_names()),
-            'st_size' : st_size,
-            'st_ctime' : mc_time,
-            'st_mtime' : mc_time,
+            'st_nlink' : 1,
+            'st_size' : 666,
+            'st_ctime' : 0,
+            'st_mtime' : 0,
             'st_atime' : time.time()
             }
 
