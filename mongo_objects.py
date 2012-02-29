@@ -1,5 +1,8 @@
+# st_nlink will report number of directories underneath
+
 from fuse import FUSE, FuseOSError
 from pymongo import Connection
+import time
 import bson
 import errno
 
@@ -11,6 +14,20 @@ class Mongo:
 
     def _isValid(self):
         return not self.conn is None
+
+    def getattr(self):
+        mc_time = time.mktime(self.conn['admin'].command('serverStatus')
+                     ['backgroundFlushing']['last_finished'].timetuple())
+        st_size = sum([db.command('dbstats')['fileSize'] for db in 
+                      [str(dbName) for dbName in self.conn.database_names()]])
+        return {
+            'st_mode' : 0777,
+            'st_nlink' : len(self.conn.database_names()),
+            'st_size' : st_size,
+            'st_ctime' : mc_time,
+            'st_mtime' : mc_time,
+            'st_atime' : time.time()
+            }
 
     def readdir(self):
         return ['.', '..'] + [str(r) for r in self.conn.database_names()]
@@ -24,6 +41,21 @@ class Database:
 
     def _isValid(self):
         return self.db in self.conn.database_names()
+    
+    def getattr(self):
+        mc_time = time.mktime(self.conn['admin'].command('serverStatus')
+                              ['backgroundFlushing']['last_finished'].timetuple())
+        st_size = sum([db.command('dbstats')['fileSize'] for db in 
+                       [str(dbName) for dbName in self.conn.database_names()]])
+        return {
+            'st_mode' : 0777,
+            'st_nlink' : len(self.conn.database_names()),
+            'st_size' : st_size,
+            'st_ctime' : mc_time,
+            'st_mtime' : mc_time,
+            'st_atime' : time.time()
+            }
+
 
     def readdir(self):
         return ['.', '..'] + [str(r) for r in self.conn[self.db].collection_names()]
@@ -38,6 +70,21 @@ class Collection:
         
     def _isValid(self):
         return self.col in self.conn[self.db].collection_names()
+
+    def getattr(self):
+        mc_time = time.mktime(self.conn['admin'].command('serverStatus')
+                              ['backgroundFlushing']['last_finished'].timetuple())
+        st_size = sum([db.command('dbstats')['fileSize'] for db in 
+                       [str(dbName) for dbName in self.conn.database_names()]])
+        return {
+            'st_mode' : 0777,
+            'st_nlink' : len(self.conn.database_names()),
+            'st_size' : st_size,
+            'st_ctime' : mc_time,
+            'st_mtime' : mc_time,
+            'st_atime' : time.time()
+            }
+
     
     def readdir(self):
         return ['.', '..'] + [str(r['_id']) for r in (self.conn[db])[self.col].find()]
@@ -57,6 +104,21 @@ class Document:
                     ObjectId(str(self.doc))) is None)
         except bson.errors.InvalidId, e:
             raise FuseOSError(errno.ENOENT)
+
+    def getattr(self):
+        mc_time = time.mktime(self.conn['admin'].command('serverStatus')
+                              ['backgroundFlushing']['last_finished'].timetuple())
+        st_size = sum([db.command('dbstats')['fileSize'] for db in 
+                       [str(dbName) for dbName in self.conn.database_names()]])
+        return {
+            'st_mode' : 0777,
+            'st_nlink' : len(self.conn.database_names()),
+            'st_size' : st_size,
+            'st_ctime' : mc_time,
+            'st_mtime' : mc_time,
+            'st_atime' : time.time()
+            }
+
     
     def readdir(self):
         raise FuseOSError(errno.ENOTDIR)
