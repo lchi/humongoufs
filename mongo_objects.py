@@ -18,7 +18,7 @@ class Mongo:
     def getattr(self):
         mc_time = time.mktime(self.conn['admin'].command('serverStatus')
                      ['backgroundFlushing']['last_finished'].timetuple())
-        st_size = sum([db.command('dbstats')['fileSize'] for db in 
+        st_size = sum([self.conn[db].command('dbstats')['fileSize'] for db in 
                       [str(dbName) for dbName in self.conn.database_names()]])
         return {
             'st_mode' : 0777,

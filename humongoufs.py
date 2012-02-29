@@ -45,10 +45,12 @@ class Humongoufs(LoggingMixIn, Operations):
         self.conn.disconnect()
     
     def getattr(self, path, fh=None):
-        if path not in self.files:
-            raise FuseOSError(errno.ENOENT)
-        st = self.files[path]
-        return st
+        obj = self.getObjectFromPath(path)
+        return obj.getattr()
+        #if path not in self.files:
+        #    raise FuseOSError(errno.ENOENT)
+        #st = self.files[path]
+        #return st
 
     def getxattr(self, path, name, position=0):
         attrs = self.files[path].get('attrs', {})
