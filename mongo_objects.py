@@ -12,9 +12,9 @@ import json
 import sys
 
 class Mongo:
-    def __init__(self, conn):
+    def __init__(self, conn, validate=True):
         self.conn = conn
-        if not self._isValid():
+        if validate and  not self._isValid():
             raise FuseOSError(errno.ENOENT)
 
     def _isValid(self):
@@ -38,10 +38,10 @@ class Mongo:
         return ['.', '..'] + [str(r) for r in self.conn.database_names()]
 
 class Database:
-    def __init__(self, conn, db):
+    def __init__(self, conn, db, validate=True):
         self.conn = conn
         self.db = db
-        if not self._isValid():
+        if validate and not self._isValid():
             raise FuseOSError(errno.ENOENT)
 
     def _isValid(self):
@@ -61,16 +61,22 @@ class Database:
             'st_atime' : time.time()
             }
 
+    def mkdir(self):
+        self.conn[self.db].create_collection('tmp')
+        self.conn[self.db].drop_collection('tmp')
 
     def readdir(self):
         return ['.', '..'] + [str(r) for r in self.conn[self.db].collection_names()]
+    
+    def rmdir(self):
+        self.conn.drop_database(self.db)
 
 class Collection:
-    def __init__(self, conn, db, col):
+    def __init__(self, conn, db, col, validate=True):
         self.conn = conn
         self.db = db
         self.col = col
-        if not self._isValid():
+        if validate and not self._isValid():
             raise FuseOSError(errno.ENOENT)
         
     def _isValid(self):
@@ -89,16 +95,22 @@ class Collection:
             'st_atime' : time.time()
             }
     
+    def mkdir(self):
+        self.conn[self.db].create_collection(self.col)
+
     def readdir(self):
         return ['.', '..'] + [str(r['_id']) for r in (self.conn[self.db])[self.col].find()]
+    
+    def rmdir(self):
+        self.conn[self.db].drop_collection(self.col)
 
 class Document:
-    def __init__(self, conn, db, col, doc):
+    def __init__(self, conn, db, col, doc, validate=True):
         self.conn = conn
         self.db = db
         self.col = col
         self.doc = doc
-        if not self._isValid():
+        if validate and not self._isValid():
             raise FuseOSError(errno.ENOENT)
     
     def _isValid(self):
@@ -114,7 +126,7 @@ class Document:
         return {
             'st_mode' : (S_IFREG | 0777),
             'st_nlink' : 1,
-            'st_size' : sys.getsizeof(json.dumps(obj, indent=4)),
+            'st_size' : len(json.dumps(obj, indent=4)),
             'st_ctime' : 0,
             'st_mtime' : 0,
             'st_atime' : time.time()

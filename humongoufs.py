@@ -38,11 +38,6 @@ class Humongoufs(LoggingMixIn, Operations):
         obj = self.getObjectFromPath(path)
         return obj.getattr()
 
-        #if path not in self.files:
-        #    raise FuseOSError(errno.ENOENT)
-        #st = self.files[path]
-        #return st
-
 #    def getxattr(self, path, name, position=0):
 #        attrs = self.files[path].get('attrs', {})
 #        try:
@@ -55,47 +50,49 @@ class Humongoufs(LoggingMixIn, Operations):
 #        return attrs.keys()
     
     def mkdir(self, path, mode):
-        self.files[path] = dict(st_mode=(S_IFDIR | mode), st_nlink=2,
-                st_size=0, st_ctime=time(), st_mtime=time(), st_atime=time())
-        self.files['/']['st_nlink'] += 1
-    
+        obj = self.makeNewObjectFromPath(path)
+        if isinstance(obj, mongo_objects.Database) or isinstance(obj, mongo_objects.Collection):
+            return obj.mkdir()
+        else:
+            raise FuseOSError(errno.EPERM)
+
 #    def open(self, path, flags):
 #        self.fd += 1
 #        return self.fd
     
     def read(self, path, size, offset, fh):
+        print 'size:', size, 'offset:', offset
         obj = self.getObjectFromPath(path)
         if isinstance(obj, mongo_objects.Document):
             return obj.read()
         else:
             raise FuseOSError(errno.EPERM)
             
-    
     def readdir(self, path, fh):
         obj = self.getObjectFromPath(path)
         return obj.readdir()
             
-    def readlink(self, path):
-        return self.data[path]
+#    def readlink(self, path):
+#        return self.data[path]
     
-    def removexattr(self, path, name):
-        attrs = self.files[path].get('attrs', {})
-        try:
-            del attrs[name]
-        except KeyError:
-            pass        # Should return ENOATTR
+#    def removexattr(self, path, name):
+#        attrs = self.files[path].get('attrs', {})
+#        try:
+#            del attrs[name]
+#        except KeyError:
+#            pass        # Should return ENOATTR
     
     def rename(self, old, new):
         self.files[new] = self.files.pop(old)
     
     def rmdir(self, path):
-        self.files.pop(path)
-        self.files['/']['st_nlink'] -= 1
+        obj = self.makeNewObjectFromPath(path)
+        if isinstance(obj, mongo_objects.Database) or isinstance(obj, mongo_objects.Collection):
+            return obj.rmdir()
+        else:
+            raise FuseOSError(errno.EPERM)
     
 #    def setxattr(self, path, name, value, options, position=0):
-        # Ignore options
-#        attrs = self.files[path].setdefault('attrs', {})
-#        attrs[name] = value
     
     def statfs(self, path):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
@@ -110,7 +107,7 @@ class Humongoufs(LoggingMixIn, Operations):
         self.files[path]['st_size'] = length
     
     def unlink(self, path):
-        self.files.pop(path)
+        raise FuseOSError(errno.EPERM)
     
     def utimens(self, path, times=None):
         now = time()
@@ -139,7 +136,19 @@ class Humongoufs(LoggingMixIn, Operations):
             return mongo_objects.Document(self.conn, pp[0], pp[1], pp[2])
         else:
             raise FuseOSError(errno.ENOENT)
+        
+    def makeNewObjectFromPath(self, path):
+        pp = self.parsePath(path)
+        if len(pp) == 1:
+            return mongo_objects.Database(self.conn, pp[0], False)
+        elif len(pp) == 2:
+            return mongo_objects.Collection(self.conn, pp[0], pp[1], False)
+        elif len(pp) == 3:
+            return mongo.objects.Document(self.conn, pp[0], pp[1], pp[2], False)
+        else:
+            raise FuseOSError(errno.EPERM)
 
+                           
 def findOpt(option, args):
     if option in args and args.index(option) < len(args) - 1:
         return args.index(option) + 1
