@@ -26,10 +26,11 @@ class Humongoufs(LoggingMixIn, Operations):
         raise FuseOSError(errno.EPERM)
     
     def create(self, path, mode):
-        self.files[path] = dict(st_mode=(S_IFREG | mode), st_nlink=1,
-            st_size=0, st_ctime=time(), st_mtime=time(), st_atime=time())
-        self.fd += 1
-        return self.fd
+        obj = makeNewObjectFromPath(path)
+        if isinstance(obj, mongo_objects.Document):
+            obj.create()
+        else:
+            raise FuseOSError(errno.EPERM)
 
     def destroy(self, path):
         self.conn.disconnect()
@@ -54,7 +55,7 @@ class Humongoufs(LoggingMixIn, Operations):
         if isinstance(obj, mongo_objects.Database) or isinstance(obj, mongo_objects.Collection):
             return obj.mkdir()
         else:
-            raise FuseOSError(errno.EPERM)
+            raise FuseOSError(errno.ENOTDIR)
 
 #    def open(self, path, flags):
 #        self.fd += 1
@@ -72,8 +73,8 @@ class Humongoufs(LoggingMixIn, Operations):
         obj = self.getObjectFromPath(path)
         return obj.readdir()
             
-#    def readlink(self, path):
-#        return self.data[path]
+    def readlink(self, path):
+        raise FuseOSError(errno.EPERM)
     
 #    def removexattr(self, path, name):
 #        attrs = self.files[path].get('attrs', {})
@@ -90,7 +91,7 @@ class Humongoufs(LoggingMixIn, Operations):
         if isinstance(obj, mongo_objects.Database) or isinstance(obj, mongo_objects.Collection):
             return obj.rmdir()
         else:
-            raise FuseOSError(errno.EPERM)
+            raise FuseOSError(errno.ENOTDIR)
     
 #    def setxattr(self, path, name, value, options, position=0):
     
@@ -106,18 +107,21 @@ class Humongoufs(LoggingMixIn, Operations):
         self.data[path] = self.data[path][:length]
         self.files[path]['st_size'] = length
     
+    # remove
     def unlink(self, path):
-        raise FuseOSError(errno.EPERM)
-    
-    def utimens(self, path, times=None):
-        now = time()
-        atime, mtime = times if times else (now, now)
-        self.files[path]['st_atime'] = atime
-        self.files[path]['st_mtime'] = mtime
+        obj = self.makeNewObjectFromPath(path)
+        if isinstance(obj, mongo_objects.Document):
+            obj.unlink()
+        else:
+            raise FuseOSError(errno.EISDIR)
     
     def write(self, path, data, offset, fh):
-        self.data[path] = self.data[path][:offset] + data
-        self.files[path]['st_size'] = len(self.data[path])
+        obj = self.makeNewObjectFromPath(path)
+        if isinstance(obj, mongo_objcets.Document):
+            obj.write(data, offset)
+        else:
+            raise FuseOSError(errno.EPERM)
+        
         return len(data)
 
     '''Helper functions'''

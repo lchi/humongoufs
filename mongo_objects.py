@@ -2,8 +2,8 @@
 
 from fuse import FUSE, FuseOSError
 from pymongo import Connection
-from bson.objectid import ObjectId
 from stat import S_IFDIR, S_IFREG
+from bson.objectid import ObjectId
 
 import time
 import bson
@@ -22,9 +22,9 @@ class Mongo:
 
     def getattr(self):
         mc_time = time.mktime(self.conn['admin'].command('serverStatus')
-                     ['backgroundFlushing']['last_finished'].timetuple())
+                              ['backgroundFlushing']['last_finished'].timetuple())
         st_size = sum([self.conn[db].command('dbstats')['fileSize'] for db in 
-                      [str(dbName) for dbName in self.conn.database_names()]])
+                       [str(dbName) for dbName in self.conn.database_names()]])
         return dict(
             st_mode= (S_IFDIR | 0777),
             st_nlink=len(self.conn.database_names()),
@@ -105,7 +105,7 @@ class Collection:
         self.conn[self.db].drop_collection(self.col)
 
 class Document:
-    def __init__(self, conn, db, col, doc, validate=True):
+    def __init__(self, conn, db, col, doc, validate=False):
         self.conn = conn
         self.db = db
         self.col = col
@@ -116,12 +116,21 @@ class Document:
     def _isValid(self):
         try:
             return not ((self.conn[self.db])[self.col].find_one(
-                    ObjectId(self.doc)) is None)
+                    {'_id' : self.doc}) is None)
         except bson.errors.InvalidId, e:
             raise FuseOSError(errno.ENOENT)
 
+    def create(self):
+        document = {
+            '_id' : self.doc
+            }
+        try:
+            self.conn[self.db][self.col].insert(document, safe=True)
+        except pymongo.errors.DuplicateKeyError:
+            raise FuseOSError(errno.EEXIST)
+
     def getattr(self):
-        obj = self.conn[self.db][self.col].find_one(ObjectId(self.doc))
+        obj = self.retrieve_doc()
         obj['_id'] = self.doc
         return {
             'st_mode' : (S_IFREG | 0777),
@@ -133,12 +142,43 @@ class Document:
             }
 
     def read(self):
-        obj = self.conn[self.db][self.col].find_one(ObjectId(self.doc))
+        obj = self.retrieve_doc()
         obj['_id'] = self.doc
         return json.dumps(obj, indent=4)
 
     def readdir(self):
         raise FuseOSError(errno.ENOTDIR)
+    
+    def unlink(self):
+        self.conn[self.db][self.col].remove({'_id':self.doc})
+        self.conn[self.db][self.col].remove(ObjectId(self.doc))
+
+    def write(self, data, offset):
+        document = {
+            '_id' : self.doc,
+            'data' : data
+            }
+
+        try:
+            self.conn[self.db][self.col].insert(document)
+            return len(data)
+        except:
+            raise FuseOSError(errno.EADV)
+    
+    def retrieve_doc(self):
+        collection = self.conn[self.db][self.col]
+        try:
+            return collection.find_one(ObjectId(self.doc)) 
+        except:
+            return collection.find_one({
+                    '_id' : self.doc
+                    })
+    
+def get_id(d_id):
+    if isinstance(d_id, str) or isinstance(d_id, unicode):
+        return ObjectId(d_id)
+    else:
+        return d_id
 
 def parsePath(self, path):
     [s for s in path.split('/') if s]
