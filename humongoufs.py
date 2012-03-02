@@ -19,21 +19,11 @@ class Humongoufs(LoggingMixIn, Operations):
     def __init__(self, host, port):
         self.conn = Connection(host,port)
 
-        self.files = {}
-        self.data = defaultdict(str)
-        self.fd = 0
-        now = time()
-        self.files['/'] = dict(st_mode=(S_IFDIR | 0755), st_ctime=now,
-            st_mtime=now, st_atime=now, st_nlink=2)
-        
     def chmod(self, path, mode):
-        self.files[path]['st_mode'] &= 0770000
-        self.files[path]['st_mode'] |= mode
-        return 0
+        raise FuseOSError(errno.EPERM)
 
     def chown(self, path, uid, gid):
-        self.files[path]['st_uid'] = uid
-        self.files[path]['st_gid'] = gid
+        raise FuseOSError(errno.EPERM)
     
     def create(self, path, mode):
         self.files[path] = dict(st_mode=(S_IFREG | mode), st_nlink=1,
@@ -47,6 +37,7 @@ class Humongoufs(LoggingMixIn, Operations):
     def getattr(self, path, fh=None):
         obj = self.getObjectFromPath(path)
         return obj.getattr()
+
         #if path not in self.files:
         #    raise FuseOSError(errno.ENOENT)
         #st = self.files[path]

@@ -2,6 +2,8 @@
 
 from fuse import FUSE, FuseOSError
 from pymongo import Connection
+from stat import S_IFDIR
+
 import time
 import bson
 import errno
@@ -20,14 +22,14 @@ class Mongo:
                      ['backgroundFlushing']['last_finished'].timetuple())
         st_size = sum([self.conn[db].command('dbstats')['fileSize'] for db in 
                       [str(dbName) for dbName in self.conn.database_names()]])
-        return {
-            'st_mode' : 0777,
-            'st_nlink' : len(self.conn.database_names()),
-            'st_size' : st_size,
-            'st_ctime' : mc_time,
-            'st_mtime' : mc_time,
-            'st_atime' : time.time()
-            }
+        return dict(
+            st_mode= (S_IFDIR | 0755),
+            st_nlink=len(self.conn.database_names()),
+            st_size=0,#st_size,
+            st_ctime=mc_time,
+            st_mtime=mc_time,
+            st_atime=time.time())
+            
 
     def readdir(self):
         return ['.', '..'] + [str(r) for r in self.conn.database_names()]
@@ -48,7 +50,7 @@ class Database:
         st_size = self.conn[self.db].command('dbstats')['fileSize'] 
 
         return {
-            'st_mode' : 0777,
+            'st_mode' : (S_IFDIR | 0755),
             'st_nlink' : len(self.conn.database_names()),
             'st_size' : st_size,
             'st_ctime' : mc_time,
@@ -76,7 +78,7 @@ class Collection:
                               ['backgroundFlushing']['last_finished'].timetuple())
         st_size = self.conn[self.db].command('collStats', col)['storageSize']
         return {
-            'st_mode' : 0777,
+            'st_mode' : (S_IFDIR | 0755),
             'st_nlink' : 1,
             'st_size' : st_size,
             'st_ctime' : 0,
@@ -106,7 +108,7 @@ class Document:
 
     def getattr(self):
         return {
-            'st_mode' : 0777,
+            'st_mode' : (S_IFDIR | 0755),
             'st_nlink' : 1,
             'st_size' : 666,
             'st_ctime' : 0,
