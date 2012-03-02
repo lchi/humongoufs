@@ -104,8 +104,9 @@ class Humongoufs(LoggingMixIn, Operations):
         self.data[target] = source
     
     def truncate(self, path, length, fh=None):
-        self.data[path] = self.data[path][:length]
-        self.files[path]['st_size'] = length
+        return 0
+#        self.data[path] = self.data[path][:length]
+#        self.files[path]['st_size'] = length
     
     # remove
     def unlink(self, path):
@@ -117,7 +118,7 @@ class Humongoufs(LoggingMixIn, Operations):
     
     def write(self, path, data, offset, fh):
         obj = self.makeNewObjectFromPath(path)
-        if isinstance(obj, mongo_objcets.Document):
+        if isinstance(obj, mongo_objects.Document):
             obj.write(data, offset)
         else:
             raise FuseOSError(errno.EPERM)
@@ -148,7 +149,7 @@ class Humongoufs(LoggingMixIn, Operations):
         elif len(pp) == 2:
             return mongo_objects.Collection(self.conn, pp[0], pp[1], False)
         elif len(pp) == 3:
-            return mongo.objects.Document(self.conn, pp[0], pp[1], pp[2], False)
+            return mongo_objects.Document(self.conn, pp[0], pp[1], pp[2], False)
         else:
             raise FuseOSError(errno.EPERM)
 

@@ -131,11 +131,16 @@ class Document:
 
     def getattr(self):
         obj = self.retrieve_doc()
-        obj['_id'] = self.doc
+        if obj:
+            obj['_id'] = self.doc
+            st_size = len(json.dumps(obj, indent=4))
+        else:
+            st_size = 0
+        
         return {
             'st_mode' : (S_IFREG | 0777),
             'st_nlink' : 1,
-            'st_size' : len(json.dumps(obj, indent=4)),
+            'st_size' : st_size,
             'st_ctime' : 0,
             'st_mtime' : 0,
             'st_atime' : time.time()
@@ -143,7 +148,8 @@ class Document:
 
     def read(self):
         obj = self.retrieve_doc()
-        obj['_id'] = self.doc
+        if obj:
+            obj['_id'] = self.doc
         return json.dumps(obj, indent=4)
 
     def readdir(self):
@@ -161,7 +167,7 @@ class Document:
 
         try:
             self.conn[self.db][self.col].insert(document)
-            return len(data)
+            return len(json.dumps(document))
         except:
             raise FuseOSError(errno.EADV)
     
@@ -170,6 +176,7 @@ class Document:
         try:
             return collection.find_one(ObjectId(self.doc)) 
         except:
+            print self.doc
             return collection.find_one({
                     '_id' : self.doc
                     })
