@@ -43,28 +43,33 @@ class Humongoufs(LoggingMixIn, Operations):
         #st = self.files[path]
         #return st
 
-    def getxattr(self, path, name, position=0):
-        attrs = self.files[path].get('attrs', {})
-        try:
-            return attrs[name]
-        except KeyError:
-            return ''       # Should return ENOATTR
+#    def getxattr(self, path, name, position=0):
+#        attrs = self.files[path].get('attrs', {})
+#        try:
+#            return attrs[name]
+#        except KeyError:
+#            return ''       # Should return ENOATTR
     
-    def listxattr(self, path):
-        attrs = self.files[path].get('attrs', {})
-        return attrs.keys()
+#    def listxattr(self, path):
+#        attrs = self.files[path].get('attrs', {})
+#        return attrs.keys()
     
     def mkdir(self, path, mode):
         self.files[path] = dict(st_mode=(S_IFDIR | mode), st_nlink=2,
                 st_size=0, st_ctime=time(), st_mtime=time(), st_atime=time())
         self.files['/']['st_nlink'] += 1
     
-    def open(self, path, flags):
-        self.fd += 1
-        return self.fd
+#    def open(self, path, flags):
+#        self.fd += 1
+#        return self.fd
     
     def read(self, path, size, offset, fh):
-        return self.data[path][offset:offset + size]
+        obj = self.getObjectFromPath(path)
+        if isinstance(obj, mongo_objects.Document):
+            return obj.read()
+        else:
+            raise FuseOSError(errno.EPERM)
+            
     
     def readdir(self, path, fh):
         obj = self.getObjectFromPath(path)
@@ -87,10 +92,10 @@ class Humongoufs(LoggingMixIn, Operations):
         self.files.pop(path)
         self.files['/']['st_nlink'] -= 1
     
-    def setxattr(self, path, name, value, options, position=0):
+#    def setxattr(self, path, name, value, options, position=0):
         # Ignore options
-        attrs = self.files[path].setdefault('attrs', {})
-        attrs[name] = value
+#        attrs = self.files[path].setdefault('attrs', {})
+#        attrs[name] = value
     
     def statfs(self, path):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
@@ -120,7 +125,7 @@ class Humongoufs(LoggingMixIn, Operations):
 
     '''Helper functions'''
     def parsePath(self, path):
-        [s for s in path.split('/') if s]
+        return [s for s in path.split('/') if s]
 
     def getObjectFromPath(self, path):
         pp = self.parsePath(path)
