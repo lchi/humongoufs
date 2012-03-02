@@ -1,13 +1,22 @@
 humongoufs
 =============
+humongoufs (pronounced the way it is spelled) is a FUSE project that lets you mount and use your Mongo database as a filesystem.  Why any would want to do this is beyond me.  
 
-<About stuff here>
+This is *NOT* a project to interact with GridFS as if it were a regular filesystem, that would be [this one](https://github.com/mikejs/gridfs-fuse), and maybe I'll think about integrating GridFS support in the future.
 
 Installation
 ------------
+I'll let you know when I get there.
 
 Usage
 -----
+In the works.
+
+Limitations
+-----------
+* No authentication support
+* No GridFS support
+* Very, very buggy - use it at your own risk
 
 License (MIT)
 -------------
