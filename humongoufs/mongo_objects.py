@@ -10,6 +10,7 @@ import bson
 import errno
 import json
 import sys
+import re
 
 class Mongo:
     def __init__(self, conn, validate=True):
@@ -110,9 +111,9 @@ class Document:
         self.db = db
         self.col = col
         self.doc = doc
-        if validate and not self._isValid():
+        if validate and not self.validated:
             raise FuseOSError(errno.ENOENT)
-    
+
     def _isValid(self):
         try:
             return not ((self.conn[self.db])[self.col].find_one(
@@ -137,13 +138,14 @@ class Document:
         else:
             st_size = 0
         
+        now = time.time()
         return {
             'st_mode' : (S_IFREG | 0777),
             'st_nlink' : 1,
             'st_size' : st_size,
-            'st_ctime' : 0,
-            'st_mtime' : 0,
-            'st_atime' : time.time()
+            'st_ctime' : now,
+            'st_mtime' : now,
+            'st_atime' : now
             }
 
     def read(self):
@@ -156,31 +158,42 @@ class Document:
         raise FuseOSError(errno.ENOTDIR)
     
     def unlink(self):
-        self.conn[self.db][self.col].remove({'_id':self.doc})
-        self.conn[self.db][self.col].remove(ObjectId(self.doc))
+        try:
+            self.conn[self.db][self.col].remove(ObjectId(self.doc)) 
+        except:
+            self.conn[self.db][self.col].remove({'_id':self.doc})
 
     def write(self, data, offset):
-        document = {
-            '_id' : self.doc,
-            'data' : data
-            }
-
         try:
-            self.conn[self.db][self.col].insert(document)
+            document = json.loads(data)
+            document['_id'] = self.doc
+        except:
+            if offset > 0: # append
+                document = self.retrieve_doc()
+                document['data'] += data
+            else:
+                document = {
+                    '_id' : self.doc,
+                    'data' : data
+                    }
+        
+        try:
+            self.conn[self.db][self.col].save(document)
             return len(json.dumps(document))
         except:
             raise FuseOSError(errno.EADV)
-    
+
+    '''Document class helpers'''
     def retrieve_doc(self):
         collection = self.conn[self.db][self.col]
         try:
             return collection.find_one(ObjectId(self.doc)) 
         except:
-            print self.doc
             return collection.find_one({
                     '_id' : self.doc
                     })
-    
+
+'''General helper functions'''
 def get_id(d_id):
     if isinstance(d_id, str) or isinstance(d_id, unicode):
         return ObjectId(d_id)
@@ -190,3 +203,4 @@ def get_id(d_id):
 def parsePath(self, path):
     [s for s in path.split('/') if s]
 
+objCheck = re.compile('{.*"_id":.*"data":.*}')

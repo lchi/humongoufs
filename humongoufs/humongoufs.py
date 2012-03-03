@@ -26,7 +26,7 @@ class Humongoufs(LoggingMixIn, Operations):
         raise FuseOSError(errno.EPERM)
     
     def create(self, path, mode):
-        obj = makeNewObjectFromPath(path)
+        obj = self.makeNewObjectFromPath(path)
         if isinstance(obj, mongo_objects.Document):
             obj.create()
         else:
@@ -46,6 +46,10 @@ class Humongoufs(LoggingMixIn, Operations):
 #        except KeyError:
 #            return ''       # Should return ENOATTR
     
+    def flush(self, path, fh):
+        print 'path:', path, 'fh:', fh
+        return 0
+
 #    def listxattr(self, path):
 #        attrs = self.files[path].get('attrs', {})
 #        return attrs.keys()
@@ -62,7 +66,6 @@ class Humongoufs(LoggingMixIn, Operations):
 #        return self.fd
     
     def read(self, path, size, offset, fh):
-        print 'size:', size, 'offset:', offset
         obj = self.getObjectFromPath(path)
         if isinstance(obj, mongo_objects.Document):
             return obj.read()
@@ -84,7 +87,20 @@ class Humongoufs(LoggingMixIn, Operations):
 #            pass        # Should return ENOATTR
     
     def rename(self, old, new):
-        self.files[new] = self.files.pop(old)
+        oldObj = self.getObjectFromPath(old)
+        try:
+            newObj = self.getObjectFromPath(new)
+        except FuseOSError:
+            newObj = self.makeNewObjectFromPath(new)
+
+        if not isinstance(oldObj, mongo_objects.Document) or not isinstance(
+            newObj, mongo_objects.Document):
+            raise FuseOSError(errno.EPERM)
+        else:
+            data = oldObj.read()
+            newObj.write(data, 0)
+            oldObj.unlink()
+
     
     def rmdir(self, path):
         obj = self.makeNewObjectFromPath(path)
@@ -98,10 +114,10 @@ class Humongoufs(LoggingMixIn, Operations):
     def statfs(self, path):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
     
-    def symlink(self, target, source):
-        self.files[target] = dict(st_mode=(S_IFLNK | 0777), st_nlink=1,
-            st_size=len(source))
-        self.data[target] = source
+#    def symlink(self, target, source):
+#        self.files[target] = dict(st_mode=(S_IFLNK | 0777), st_nlink=1,
+#            st_size=len(source))
+#        self.data[target] = source
     
     def truncate(self, path, length, fh=None):
         return 0
@@ -117,6 +133,7 @@ class Humongoufs(LoggingMixIn, Operations):
             raise FuseOSError(errno.EISDIR)
     
     def write(self, path, data, offset, fh):
+        print 'offset:', offset, 'to path:', path
         obj = self.makeNewObjectFromPath(path)
         if isinstance(obj, mongo_objects.Document):
             obj.write(data, offset)

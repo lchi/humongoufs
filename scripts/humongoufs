@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+python -m humongoufs.humongoufs $@
+
+exit 0
